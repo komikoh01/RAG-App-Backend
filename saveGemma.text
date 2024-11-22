@@ -1,0 +1,10 @@
+import { Ollama } from '@langchain/ollama'
+import { config } from '../config/config.js'
+
+const llm = new Ollama({
+    model: config.model,
+    baseUrl: config.apiURL,
+    temperature: 0
+})
+
+export default llm;

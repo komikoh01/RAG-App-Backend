@@ -1,0 +1,55 @@
+import { retrieveDocuments } from "../embeddings/retriever.js";
+import llm from "../models/gemma2.js";
+import {
+  SystemMessagePromptTemplate,
+  HumanMessagePromptTemplate,
+  ChatPromptTemplate,
+} from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { addToHistory, getHistory } from "../utils/history.js";
+
+export async function runRAGChain(query) {
+  addToHistory("user", query);
+
+  const context = await retrieveDocuments(query);
+  const chatHistory = getHistory();  // Obtener el historial de chat
+  console.log("Context", context);
+  console.log("History", chatHistory);
+
+  // Usa el ChatPromptTemplate corregido
+  const promptTemplate = ChatPromptTemplate.fromMessages([
+    SystemMessagePromptTemplate.fromTemplate(
+      `You are an assistant for question-answering tasks. 
+      Use the following pieces of retrieved context to answer the question.
+      If you don't know the answer, just say that you don't know and suggest contacting support for more information.
+      Keep the answer concise (maximum three sentences).`
+    ),
+    HumanMessagePromptTemplate.fromTemplate(
+      `History: {history}
+      Question: {question}
+      Context: {context}
+      Answer:`
+    )
+  ]);
+
+  const ragChain = createStuffDocumentsChain({
+    llm,
+    prompt: promptTemplate,
+    outputParser: new StringOutputParser(),
+  });
+
+  const resolvedRagChain = await ragChain;
+
+  // Ahora puedes llamar a `invoke` en el objeto resuelto
+  const response = await resolvedRagChain.invoke({
+    question: query,
+    context: context,
+    history: chatHistory,
+  });
+
+  // Agregar la respuesta al historial
+  addToHistory("assistant", response);
+
+  return response;
+}
